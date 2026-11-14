@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Lock Simulator</title>
+<style>
+:root{
+  --bench:#8a5f3a;--bench2:#6e4a2c;--acr:rgba(235,246,250,.55);--acr-edge:rgba(255,255,255,.85);
+  --ink:#10222b;--lcd:#bfe3b0;--lcd-ink:#12301a;--ok:#1fae5b;--bad:#e5484d;--blue:#1d9be0;--red:#e0483f;
+  --key-ink:#fff;--card:rgba(20,30,36,.55);--txt:#f4f1ea;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bench:#4a3321;--bench2:#382718;--acr:rgba(180,210,225,.18);--acr-edge:rgba(255,255,255,.4);--lcd:#8fc27f}}
+:root[data-theme="dark"]{--bench:#4a3321;--bench2:#382718;--acr:rgba(180,210,225,.18);--acr-edge:rgba(255,255,255,.4);--lcd:#8fc27f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;color:var(--txt);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  background:repeating-linear-gradient(100deg,var(--bench) 0 22px,var(--bench2) 22px 25px,var(--bench) 25px 48px);
+  display:flex;justify-content:center;touch-action:manipulation}
+main{width:100%;max-width:440px;padding:14px 14px 28px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:1.05rem;margin:4px 2px 0;font-weight:700;letter-spacing:.01em}
+.sub{margin:0 2px;font-size:.82rem;opacity:.85}
+.panel{background:var(--acr);border:1.5px solid var(--acr-edge);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 0 30px rgba(255,255,255,.12);backdrop-filter:blur(2px)}
+/* door */
+.stage{padding:16px;display:flex;justify-content:center;perspective:700px}
+.frame{position:relative;width:200px;height:240px;border:8px solid var(--acr-edge);border-radius:4px;background:rgba(10,20,26,.45);box-shadow:inset 0 0 18px rgba(0,0,0,.5)}
+.room{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#ffe9a8;opacity:0;transition:opacity .5s}
+.open .room{opacity:1}
+.door{position:absolute;inset:0;transform-origin:left center;background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(200,225,235,.35));border:2px solid var(--acr-edge);transition:transform .8s cubic-bezier(.3,.7,.2,1);display:flex;align-items:center;justify-content:center}
+.open .door{transform:rotateY(-72deg)}
+.knob{width:54px;height:54px;border-radius:12px;border:3px solid var(--acr-edge);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.25)}
+.knob i{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#9bd3ee);box-shadow:0 0 8px rgba(255,255,255,.7)}
+.bolt{position:absolute;right:-9px;top:50%;width:26px;height:20px;margin-top:-10px;background:#d8dde0;border:2px solid #7d8a90;border-radius:3px;transition:transform .35s;transform:translateX(-14px);z-index:3}
+.open .bolt{transform:translateX(12px)}
+/* lcd */
+.lcd{margin:0 14px;padding:10px 12px;background:var(--lcd);color:var(--lcd-ink);border-radius:6px;font-family:"Courier New",monospace;min-height:74px;box-shadow:inset 0 2px 6px rgba(0,0,0,.35)}
+.lcd b{display:block;font-size:1.05rem}
+.lcd span{display:block;font-size:1.5rem;letter-spacing:.35em;min-height:1.9rem}
+.lcd small{font-size:.78rem}
+.leds{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 16px 14px}
+.led{display:inline-flex;align-items:center;gap:6px;font-size:.78rem}
+.led i{width:12px;height:12px;border-radius:50%;background:#444;box-shadow:inset 0 0 3px #000}
+.led.g.on i{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.led.r.on i{background:var(--bad);box-shadow:0 0 10px var(--bad)}
+.batt{display:flex;gap:2px;border:2px solid #fff;padding:2px;border-radius:3px}
+.batt u{width:7px;height:12px;background:var(--ok);display:block}
+/* base */
+.base{padding:16px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}
+.pad{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;background:#111;padding:10px;border-radius:8px}
+.k{height:52px;border:0;border-radius:8px;font-size:1.2rem;font-weight:700;color:var(--key-ink);background:var(--blue);box-shadow:0 3px 0 rgba(0,0,0,.45);cursor:pointer;font-family:inherit}
+.k.l{background:var(--red)}
+.k:active,.k.p{transform:translateY(3px);box-shadow:none}
+.k:focus-visible,.fp:focus-visible,.small:focus-visible,.qr-input:focus-visible,.qr-download:focus-visible{outline:3px solid #ffd23f;outline-offset:2px}
+.fpwrap{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:.78rem;text-align:center;max-width:92px}
+.fp{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;width:84px;height:104px;border-radius:10px;border:3px solid var(--acr-edge);background:#14191c;position:relative;overflow:hidden;cursor:pointer;padding:0}
+.fp svg{width:100%;height:100%;stroke:#58c7f2;fill:none;stroke-width:2.2;stroke-linecap:round;opacity:.85}
+.fp::after{content:"";position:absolute;left:0;right:0;height:3px;background:#7fe3ff;box-shadow:0 0 12px #7fe3ff;top:-4px;opacity:0}
+.fp.scan::after{opacity:1;animation:sw .8s linear}
+@keyframes sw{from{top:0}to{top:100%}}
+.fp.scan svg{stroke:#9ff0ff}
+.small{margin:0 16px 14px;padding:11px;border-radius:8px;border:1.5px solid var(--acr-edge);background:var(--card);color:var(--txt);font:inherit;font-size:.9rem;cursor:pointer}
+.small[hidden]{display:none}
+.hint{font-size:.78rem;opacity:.85;margin:0 2px}
+.team{padding:16px 18px 18px;text-align:center}
+.team h2{margin:0 0 8px;font-size:.85rem;font-weight:400;opacity:.85}
+.team p{margin:0;font-size:.95rem;line-height:1.9}
+/* live QR generator */
+.qr-panel{padding:16px;text-align:center}
+.qr-panel h2{margin:0 0 6px;font-size:1rem}
+.qr-panel p{margin:0 0 12px;font-size:.8rem;opacity:.9}
+.qr-input{width:100%;min-height:44px;padding:10px 12px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(255,255,255,.92);color:#14232a;font:inherit;font-size:.9rem}
+.qr-preview{display:grid;place-items:center;min-height:212px;margin:12px 0 8px;padding:12px;background:#fff;border-radius:8px}
+#qrcode{min-width:180px;min-height:180px;display:grid;place-items:center}
+#qrcode canvas,#qrcode img{max-width:100%;height:auto!important}
+.qr-status{min-height:1.2em;margin:4px 0 10px!important;color:var(--txt)}
+.qr-download{padding:10px 14px;border:0;border-radius:7px;background:var(--blue);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.qr-download:disabled{opacity:.55;cursor:not-allowed}
+.shake{animation:sh .35s}
+@keyframes sh{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Smart Lock Simulator</h1>
+  <p class="sub">Enter the PIN on the keypad or press and hold the fingerprint sensor.</p>
+
+  <section class="panel" aria-label="Lock">
+    <div class="stage"><div class="frame" id="frame"><div class="room">Unlocked</div><div class="door"><div class="knob"><i></i></div></div><div class="bolt"></div></div></div>
+    <div class="lcd" id="lcd"><b id="l1">ENTER PIN</b><span id="l2"></span><small id="l3">&nbsp;</small></div>
+    <div class="leds">
+      <span class="led g" id="ledG"><i></i>Open</span>
+      <span class="led r" id="ledR"><i></i>Denied</span>
+      <span class="batt" aria-label="Battery full"><u></u><u></u><u></u><u></u></span>
+    </div>
+    <button class="small" id="relock" hidden>Lock now</button>
+  </section>
+
+  <section class="panel base" aria-label="Controls">
+    <div class="pad" id="pad"></div>
+    <div class="fpwrap">
+      <button class="fp" id="fp" aria-label="Fingerprint sensor, press and hold to scan">
+        <svg viewBox="0 0 84 104"><path d="M22 70c0-22 6-40 20-40s20 18 20 40"/><path d="M30 76c-2-24 2-34 12-34s14 10 12 34"/><path d="M38 82c-2-20 0-28 4-28s6 8 4 28"/><path d="M14 58c0-26 12-42 28-42s28 16 28 42"/><path d="M42 62v22"/></svg>
+      </button>
+      Fingerprint
+    </div>
+  </section>
+  <p class="hint">4 = enter · * = clear. Opens for 6 seconds, then locks again. After 3 wrong PINs the keypad waits 10 seconds.</p>
+
+  <section class="panel qr-panel" aria-label="Live QR code generator">
+    <h2>Live QR Code</h2>
+    <p>Type text or a link below. The QR code updates as you type.</p>
+    <label class="hint" for="qrText">Text or URL</label>
+    <input class="qr-input" id="qrText" type="text" value="https://example.com" autocomplete="off" spellcheck="false" placeholder="Enter text or a URL">
+    <div class="qr-preview"><div id="qrcode" role="img" aria-label="QR code preview"></div></div>
+    <p class="qr-status" id="qrStatus" aria-live="polite">QR code ready.</p>
+    <button class="qr-download" id="qrDownload" type="button">Download PNG</button>
+  </section>
+
+  <section class="panel team" aria-label="Team">
+    <h2>Built by</h2>
+    <p>Rafael Jr. P. Delaroso<br>Dexter C. Española<br>Kenneth P. Gancia<br>Rudge B. Gonzales<br>Charles S. Viesca</p>
+  </section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+  var PIN="DCB#", entered="", locked=true, busy=false, fails=0, lockout=false, timer=null, tick=null;
+  var $=function(id){return document.getElementById(id)};
+  var frame=$("frame"), l1=$("l1"), l2=$("l2"), l3=$("l3"), ledG=$("ledG"), ledR=$("ledR"), relock=$("relock"), fp=$("fp"), lcd=$("lcd");
+  var ac=null;
+  function beep(f,d,t){
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),g=ac.createGain();
+      o.type=t||"square";o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d/1000);}catch(e){}
+  }
+  function buzz(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+  function show(a,b,c){l1.textContent=a;if(b!==null)l2.textContent=b;l3.innerHTML=c||"&nbsp;";}
+  function dots(){l2.textContent=new Array(entered.length+1).join("●");}
+  function reset(){entered="";ledR.classList.remove("on");show("ENTER PIN","","&nbsp;");}
+  function unlock(how){
+    if(!locked)return; locked=false; fails=0; entered="";
+    frame.classList.add("open"); ledG.classList.add("on"); ledR.classList.remove("on");
+    relock.hidden=false;
+    show("UNLOCKED","",how);
+    beep(880,120,"sine");setTimeout(function(){beep(1320,180,"sine")},140);buzz([40,40,80]);
+    var left=6; l3.textContent=how+" · locks in "+left+"s";
+    tick=setInterval(function(){left--; if(left>0)l3.textContent=how+" · locks in "+left+"s";},1000);
+    timer=setTimeout(lockNow,6000);
+  }
+  function lockNow(){
+    clearTimeout(timer);clearInterval(tick);
+    if(locked)return; locked=true;
+    frame.classList.remove("open"); ledG.classList.remove("on"); relock.hidden=true;
+    beep(300,140,"square"); reset(); show("LOCKED","","Ready");
+    setTimeout(function(){if(locked&&!entered)show("ENTER PIN","","&nbsp;")},1200);
+  }
+  function deny(msg){
+    fails++; ledR.classList.add("on"); buzz([120,60,120]);
+    beep(200,300,"sawtooth");
+    lcd.classList.remove("shake");void lcd.offsetWidth;lcd.classList.add("shake");
+    entered="";
+    if(fails>=3){
+      lockout=true; var s=10; fails=0;
+      show("TOO MANY TRIES","","Wait "+s+"s");
+      var t=setInterval(function(){s--; if(s<=0){clearInterval(t);lockout=false;reset();}else l3.textContent="Wait "+s+"s";},1000);
+    }else{
+      show(msg,"","Attempt "+fails+" of 3");
+      setTimeout(function(){if(locked&&!lockout&&!entered)reset();},1400);
+    }
+  }
+  function press(k){
+    if(lockout||busy)return;
+    beep(660,50,"square");buzz(15);
+    if(!locked){return;}
+    if(k==="*"){reset();return;}
+    if(k==="4"){
+      if(entered===PIN)unlock("PIN accepted"); else deny(entered?"WRONG PIN":"ENTER PIN FIRST");
+      return;
+    }
+    if(entered.length>=8)return;
+    ledR.classList.remove("on"); entered+=k; show("ENTER PIN",null,"Press 4 to enter"); dots();
+  }
+  var keys=["1","2","3","A","4","5","6","B","7","8","9","C","*","0","#","D"], pad=$("pad");
+  keys.forEach(function(k){
+    var b=document.createElement("button");b.className="k"+(/[A-D*#]/.test(k)?" l":"");b.textContent=k;b.setAttribute("data-k",k);
+    b.addEventListener("click",function(){press(k)});pad.appendChild(b);
+  });
+  document.addEventListener("keydown",function(e){
+    var k=e.key; if(k==="Enter")k="4"; if(k==="Backspace"||k==="Escape")k="*";
+    if(keys.indexOf(k.toUpperCase())>-1){
+      var el=pad.querySelector('[data-k="'+k.toUpperCase()+'"]');
+      if(el){el.classList.add("p");setTimeout(function(){el.classList.remove("p")},100);}
+      press(k.toUpperCase());
+    }
+  });
+  var hold=null;
+  function fpStart(e){
+    e.preventDefault();
+    if(hold||lockout||!locked)return;
+    fp.classList.add("scan"); show("SCANNING…","","Keep pressing"); beep(520,700,"sine"); buzz(30);
+    hold=setTimeout(function(){hold=null;fp.classList.remove("scan");unlock("Fingerprint matched");},850);
+  }
+  function fpEnd(){
+    if(!hold)return;
+    clearTimeout(hold);hold=null;fp.classList.remove("scan");
+    if(locked)show("PRESS LONGER","","Hold the sensor");
+    setTimeout(function(){if(locked&&!lockout&&!entered&&!hold)reset();},1200);
+  }
+  fp.addEventListener("pointerdown",fpStart);
+  ["pointerup","pointerleave","pointercancel"].forEach(function(n){fp.addEventListener(n,fpEnd)});
+  fp.addEventListener("contextmenu",function(e){e.preventDefault()});
+  fp.addEventListener("keydown",function(e){if((e.key===" "||e.key==="Enter")&&!e.repeat){e.stopPropagation();fpStart(e)}});
+  fp.addEventListener("keyup",function(e){if(e.key===" "||e.key==="Enter")fpEnd()});
+  relock.addEventListener("click",lockNow);
+  show("LOCKED","","Ready"); setTimeout(function(){reset()},900);
+
+  // Generate a fresh QR code whenever the input changes.
+  var qrText=$("qrText"), qrRoot=$("qrcode"), qrStatus=$("qrStatus"), qrDownload=$("qrDownload"), qrCode=null, qrDebounce=null;
+  function renderQR(){
+    var value=qrText.value.trim();
+    qrRoot.replaceChildren();
+    if(!value){qrStatus.textContent="Enter text or a URL to create a QR code.";qrDownload.disabled=true;return;}
+    if(typeof QRCode==="undefined"){
+      qrStatus.textContent="QR generator did not load. Check your internet connection and reload.";qrDownload.disabled=true;return;
+    }
+    try{
+      qrCode=new QRCode(qrRoot,{text:value,width:180,height:180,colorDark:"#000000",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H});
+      qrRoot.setAttribute("aria-label","QR code for: "+value);
+      qrStatus.textContent="QR code updated.";
+      qrDownload.disabled=false;
+    }catch(error){
+      qrStatus.textContent="Could not create a QR code for this text.";qrDownload.disabled=true;
+    }
+  }
+  qrText.addEventListener("input",function(){
+    clearTimeout(qrDebounce);qrStatus.textContent="Updating QR code…";
+    qrDebounce=setTimeout(renderQR,180);
+  });
+  qrDownload.addEventListener("click",function(){
+    var canvas=qrRoot.querySelector("canvas");
+    if(!canvas){qrStatus.textContent="QR image is not ready to download yet.";return;}
+    var link=document.createElement("a");link.download="qr-code.png";link.href=canvas.toDataURL("image/png");link.click();
+  });
+  renderQR();
+})();
+</script>
+</body>
+</html>
